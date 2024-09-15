@@ -6,12 +6,12 @@ import random
 import time
 
 # Load sudokus
-sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/easy_puzzle.npy")
+sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
 print("very_easy_puzzle.npy has been loaded into the variable sudoku")
 print(f"sudoku.shape: {sudoku.shape}, sudoku[0].shape: {sudoku[0].shape}, sudoku.dtype: {sudoku.dtype}")
 
 # Load solutions for demonstration
-solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/easy_puzzle.npy")
+solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
 print()
 
 # Print the first 9x9 sudoku...
@@ -92,19 +92,15 @@ def depth_first_search(partial_state):
     if partial_state.is_goal():
         return partial_state
 
-    # Pick the next empty cell to fill
-    print("Printing Sorted values")
     row, col = pick_next_empty_cell(partial_state)
-    values = order_values(partial_state, row, col)
-    print(values)
-
-    for value in values:
+    if row is None and col is None:  # No empty cells left
+        return partial_state if not partial_state.is_invalid() else None
+    
+    for value in order_values(partial_state, row, col):
         # Try assigning this value to the cell
         new_state = partial_state.set_value(row, col, value)
-        
-        # Check if this state is valid and continue searching
-        if not new_state.is_invalid():
-            print("is valid")
+
+        if forward_checking(new_state, row, col, value):
             result = depth_first_search(new_state)
             if result is not None and result.is_goal():
                 return result
@@ -113,6 +109,22 @@ def depth_first_search(partial_state):
 
     # No solution found
     return None
+
+def forward_checking(state, row, col, value):
+    """
+    Perform forward checking after assigning a value to a cell.
+    Returns False if this leads to an invalid state, True otherwise.
+    """
+    for r in range(9):
+        for c in range(9):
+            if (r == row and c == col) or state.board[r, c] != 0:
+                continue
+            if (r == row or c == col or (r//3 == row//3 and c//3 == col//3)):
+                if value in state.domains[(r, c)]:
+                    state.domains[(r, c)].remove(value)
+                    if len(state.domains[(r, c)]) == 0:
+                        return False
+    return True
 
 class PartialSudokuState:
     def __init__(self, board):
