@@ -6,12 +6,12 @@ import random
 import time
 
 # Load sudokus
-sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
+sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/easy_puzzle.npy")
 print("very_easy_puzzle.npy has been loaded into the variable sudoku")
 print(f"sudoku.shape: {sudoku.shape}, sudoku[0].shape: {sudoku[0].shape}, sudoku.dtype: {sudoku.dtype}")
 
 # Load solutions for demonstration
-solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
+solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/easy_puzzle.npy")
 print()
 
 # Print the first 9x9 sudoku...
