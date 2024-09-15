@@ -6,20 +6,20 @@ import random
 import time
 
 # Load sudokus
-sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
+sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/medium_puzzle.npy")
 print("very_easy_puzzle.npy has been loaded into the variable sudoku")
 print(f"sudoku.shape: {sudoku.shape}, sudoku[0].shape: {sudoku[0].shape}, sudoku.dtype: {sudoku.dtype}")
 
 # Load solutions for demonstration
-solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
+solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/medium_solution.npy")
 print()
 
 # Print the first 9x9 sudoku...
-print("First sudoku:")
+#print("First sudoku:")
 print(sudoku[0], "\n")
 
 # ...and its solution
-print("Solution of first sudoku:")
+#print("Solution of first sudoku:")
 print(solutions[0])
 
 def sudoku_solver(sudoku):
@@ -49,7 +49,7 @@ def pick_next_empty_cell(partial_state):
     """
     empty_cells = [(row, col) for row in range(9) for col in range(9) if partial_state.board[row, col] == 0]
     # Can implement other heuristics to pick the best cell, here it's random.
-    print(empty_cells)
+    #print(empty_cells)
 
     if not empty_cells:
         return None
@@ -79,7 +79,7 @@ def order_values(partial_state, row, col):
         return conflicts
     
     values = partial_state.get_possible_values(row, col)
-    print(values)
+    #print(values)
     return sorted(values, key=count_conflicts)
 
 def depth_first_search(partial_state):
@@ -106,6 +106,7 @@ def depth_first_search(partial_state):
                 return result
         else:
             print("is not valid")
+            continue
 
     # No solution found
     return None
@@ -115,15 +116,38 @@ def forward_checking(state, row, col, value):
     Perform forward checking after assigning a value to a cell.
     Returns False if this leads to an invalid state, True otherwise.
     """
+    # Check row
+    for c in range(9):
+        if c != col and state.board[row, c] == value:
+            return False
+        if c != col and state.board[row, c] == 0:
+            if value in state.domains[(row, c)]:
+                state.domains[(row, c)].remove(value)
+                if len(state.domains[(row, c)]) == 0:
+                    return False
+
+    # Check column
     for r in range(9):
-        for c in range(9):
-            if (r == row and c == col) or state.board[r, c] != 0:
-                continue
-            if (r == row or c == col or (r//3 == row//3 and c//3 == col//3)):
+        if r != row and state.board[r, col] == value:
+            return False
+        if r != row and state.board[r, col] == 0:
+            if value in state.domains[(r, col)]:
+                state.domains[(r, col)].remove(value)
+                if len(state.domains[(r, col)]) == 0:
+                    return False
+
+    # Check 3x3 box
+    box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+    for r in range(box_row, box_row + 3):
+        for c in range(box_col, box_col + 3):
+            if (r, c) != (row, col) and state.board[r, c] == value:
+                return False
+            if (r, c) != (row, col) and state.board[r, c] == 0:
                 if value in state.domains[(r, c)]:
                     state.domains[(r, c)].remove(value)
                     if len(state.domains[(r, c)]) == 0:
                         return False
+
     return True
 
 class PartialSudokuState:
@@ -132,8 +156,7 @@ class PartialSudokuState:
         self.domains = self._init_domains()
     
     def _init_domains(self):
-        """Initialize possible values (domains) for each empty cell."""
-       
+        """Initialize possible values (domains) for each empty cell.""" 
         domains = {}
         for r in range(9):
             for c in range(9):
@@ -147,6 +170,45 @@ class PartialSudokuState:
                         domains[(r, c)] = {cell_value}
         
         return domains
+    
+    def is_valid_initial_state(self):
+        """Check if the initial Sudoku state is valid."""
+        return self._no_duplicates_in_rows() and \
+               self._no_duplicates_in_columns() and \
+               self._no_duplicates_in_boxes()
+    
+    def is_valid(self):
+        """Check if the current Sudoku state is valid."""
+        return self.is_valid_initial_state()
+    
+    def _no_duplicates_in_rows(self):
+        for row in self.board:
+            if self._has_duplicates(row):
+                return False
+        return True
+    
+    def _no_duplicates_in_columns(self):
+        for col in self.board.T:
+            if self._has_duplicates(col):
+                return False
+        return True
+    
+    def _no_duplicates_in_boxes(self):
+        for i in range(0, 9, 3):
+            for j in range(0, 9, 3):
+                box = self.board[i:i+3, j:j+3].flatten()
+                if self._has_duplicates(box):
+                    return False
+        return True
+    
+    def _has_duplicates(self, arr):
+        seen = set()
+        for num in arr:
+            if num != 0:
+                if num in seen:
+                    return True
+                seen.add(num)
+        return False
 
     def get_possible_values(self, row, col):
         """Return possible values for a specific cell."""
@@ -161,14 +223,23 @@ class PartialSudokuState:
 
     def _update_domains(self, row, col, value):
         """Update the domains after assigning a value to a cell."""
+        # Ensure to update the domains for all related cells
         for r in range(9):
-            self.domains[(r, col)].discard(value)
+            if r != row:
+                self.domains[(r, col)].discard(value)
         for c in range(9):
-            self.domains[(row, c)].discard(value)
+            if c != col:
+                self.domains[(row, c)].discard(value)
         start_row, start_col = 3 * (row // 3), 3 * (col // 3)
         for r in range(start_row, start_row + 3):
             for c in range(start_col, start_col + 3):
-                self.domains[(r, c)].discard(value)
+                if (r, c) != (row, col):
+                    self.domains[(r, c)].discard(value)
+    
+        # Debugging print statements
+        #print(f"Domains after setting ({row}, {col}) to {value}:")
+        #for key, domain in self.domains.items():
+            #print(f"Cell {key}: {domain}")
 
     def is_goal(self):
         """Check if the puzzle is fully solved (no empty cells)."""
@@ -198,17 +269,37 @@ class PartialSudokuState:
         return False
 
 num_success = 0
+final_board = []
+
+
+
+print("*************************************")
 start_time = time.process_time()
-for num in range(0, 1):
+for num in range(0, len(sudoku)):
     partial_state = PartialSudokuState(sudoku[num])
+
+    if not partial_state.is_valid():
+        final_board = np.full((9, 9), -1, dtype=int)
+
     solution = depth_first_search(partial_state)
 
-    if solution is not None and solution.is_goal():
+    if solution is None:
+        final_board =  np.full((9, 9), -1, dtype=int)
+        print("No solution found")
+
+    else:
         print("Solved Sudoku:")
         print(solution.board)
         num_success += 1
-    else:
-        print("No solution found")
+        final_board =  solution.board
+
+    print("solution =")
+    print(solutions[num])
+    print()
+    print("result = ")
+    print(final_board)
+    
+
 
 end_time = time.process_time()
 print("This sudoku took {} seconds to solve.\n".format(end_time-start_time))
