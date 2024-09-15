@@ -16,12 +16,15 @@ def sudoku_solver(sudoku):
         9x9 numpy array of integers
             It contains the solution, if there is one. If there is no solution, all array entries should be -1.
     """
+
+    time_limit = 10
+    start_time = time.time()
     partial_state = PartialSudokuState(sudoku)
 
     if not partial_state.is_valid():
         return np.full((9, 9), -1, dtype=int)
 
-    solution = depth_first_search(partial_state)
+    solution = depth_first_search(partial_state, start_time, time_limit)
 
     if solution is None:
         return np.full((9, 9), -1, dtype=int)
@@ -30,17 +33,24 @@ def sudoku_solver(sudoku):
 
 def pick_next_empty_cell(partial_state):
     """
-    Pick the next empty cell to assign a value. This can be based on 
-    the number of possible values remaining (Most Constrained Variable heuristic).
+    Pick the next empty cell to assign a value using MCV and degree heuristic.
     """
     empty_cells = [(row, col) for row in range(9) for col in range(9) if partial_state.board[row, col] == 0]
     if not empty_cells:
         return None, None
-    return min(empty_cells, key=lambda cell: len(partial_state.get_possible_values(*cell)))
+    return min(empty_cells, key=lambda cell: (
+        len(partial_state.get_possible_values(*cell)),
+        -sum(1 for r in range(9) for c in range(9) 
+             if partial_state.board[r, c] == 0 and (
+                 r == cell[0] or c == cell[1] or 
+                 (r // 3 == cell[0] // 3 and c // 3 == cell[1] // 3)
+             ))
+    ))
 
 def order_values(partial_state, row, col):
     """
     Get possible values for a particular cell in the order we should try them.
+    Uses Least Constraining Value (LCV) heuristic.
     """
     def count_conflicts(value):
         conflicts = 0
@@ -60,12 +70,15 @@ def order_values(partial_state, row, col):
     values = partial_state.get_possible_values(row, col)
     return sorted(values, key=count_conflicts)
 
-def depth_first_search(partial_state):
+def depth_first_search(partial_state, start_time, time_limit):
     """
     Perform a depth-first search on partial Sudoku states, trying each possible value
     for the next empty cell. If the state is valid, continue searching. If it's a goal state,
     return the solution.
     """
+    if time.time() - start_time > time_limit:
+        return None  # Time limit exceeded
+
     if partial_state.is_goal():
         return partial_state
 
@@ -76,7 +89,7 @@ def depth_first_search(partial_state):
     for value in order_values(partial_state, row, col):
         new_state = partial_state.set_value(row, col, value)
         if forward_checking(new_state, row, col, value):
-            result = depth_first_search(new_state)
+            result = depth_first_search(new_state, start_time, time_limit)
             if result is not None and result.is_goal():
                 return result
 
@@ -88,32 +101,29 @@ def forward_checking(state, row, col, value):
     Returns False if this leads to an invalid state, True otherwise.
     """
     for c in range(9):
-        if c != col and state.board[row, c] == value:
-            return False
-        if c != col and state.board[row, c] == 0:
-            if value in state.domains[(row, c)]:
-                state.domains[(row, c)].remove(value)
-                if len(state.domains[(row, c)]) == 0:
+        if c != col:
+            if state.board[row, c] == value:
+                return False
+            if state.board[row, c] == 0:
+                if not state.remove_value_from_domain(row, c, value):
                     return False
 
     for r in range(9):
-        if r != row and state.board[r, col] == value:
-            return False
-        if r != row and state.board[r, col] == 0:
-            if value in state.domains[(r, col)]:
-                state.domains[(r, col)].remove(value)
-                if len(state.domains[(r, col)]) == 0:
+        if r != row:
+            if state.board[r, col] == value:
+                return False
+            if state.board[r, col] == 0:
+                if not state.remove_value_from_domain(r, col, value):
                     return False
 
     box_row, box_col = 3 * (row // 3), 3 * (col // 3)
     for r in range(box_row, box_row + 3):
         for c in range(box_col, box_col + 3):
-            if (r, c) != (row, col) and state.board[r, c] == value:
-                return False
-            if (r, c) != (row, col) and state.board[r, c] == 0:
-                if value in state.domains[(r, c)]:
-                    state.domains[(r, c)].remove(value)
-                    if len(state.domains[(r, c)]) == 0:
+            if (r, c) != (row, col):
+                if state.board[r, c] == value:
+                    return False
+                if state.board[r, c] == 0:
+                    if not state.remove_value_from_domain(r, c, value):
                         return False
 
     return True
@@ -180,17 +190,29 @@ class PartialSudokuState:
         return new_state
 
     def _update_domains(self, row, col, value):
+        self.domains[(row, col)] = {value}
         for r in range(9):
             if r != row:
-                self.domains[(r, col)].discard(value)
+                self.remove_value_from_domain(r, col, value)
         for c in range(9):
             if c != col:
-                self.domains[(row, c)].discard(value)
+                self.remove_value_from_domain(row, c, value)
         start_row, start_col = 3 * (row // 3), 3 * (col // 3)
         for r in range(start_row, start_row + 3):
             for c in range(start_col, start_col + 3):
                 if (r, c) != (row, col):
-                    self.domains[(r, c)].discard(value)
+                    self.remove_value_from_domain(r, c, value)
+
+    def remove_value_from_domain(self, row, col, value):
+        if value in self.domains[(row, col)]:
+            self.domains[(row, col)].remove(value)
+            if len(self.domains[(row, col)]) == 0:
+                return False
+            if len(self.domains[(row, col)]) == 1:
+                last_value = list(self.domains[(row, col)])[0]
+                if not self._update_domains(row, col, last_value):
+                    return False
+        return True
 
     def is_goal(self):
         return np.all(self.board != 0)
@@ -215,8 +237,8 @@ class PartialSudokuState:
         return False
 
 # Main execution
-sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/medium_puzzle.npy")
-solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/medium_solution.npy")
+sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
+solutions = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_solution.npy")
 
 num_success = 0
 start_time = time.process_time()
@@ -228,6 +250,8 @@ for num in range(len(sudoku)):
         num_success += 1
     
     print(f"Puzzle {num + 1}:")
+    print(f"Puzzle:")
+    print(sudoku[num])
     print("Result:")
     print(result)
     print("Solution:")
