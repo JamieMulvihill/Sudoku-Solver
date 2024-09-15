@@ -210,10 +210,6 @@ for num in range(0, 1):
     else:
         print("No solution found")
 
-
-
-#print(sudoku[0])
-#sudoku_solver(sudoku[0])
 end_time = time.process_time()
 print("This sudoku took {} seconds to solve.\n".format(end_time-start_time))
 print(num_success)
