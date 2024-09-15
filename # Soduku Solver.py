@@ -133,17 +133,7 @@ class PartialSudokuState:
     
     def _init_domains(self):
         """Initialize possible values (domains) for each empty cell."""
-        #domains = {}
-        #for r in range(9):
-            #for c in range(9):
-                #if self.board[r, c] == 0:
-                    #domains[(r, c)] = set(range(1, 10))
-                #else:
-                    #domains[(r, c)] = {self.board[r, c]}
-        
-        #print(domains)
-        #return domains
-
+       
         domains = {}
         for r in range(9):
             for c in range(9):
@@ -156,7 +146,6 @@ class PartialSudokuState:
                     else:
                         domains[(r, c)] = {cell_value}
         
-        #print(domains)
         return domains
 
     def get_possible_values(self, row, col):
