@@ -50,7 +50,13 @@ def pick_next_empty_cell(partial_state):
     empty_cells = [(row, col) for row in range(9) for col in range(9) if partial_state.board[row, col] == 0]
     # Can implement other heuristics to pick the best cell, here it's random.
     print(empty_cells)
-    return random.choice(empty_cells)
+
+    if not empty_cells:
+        return None
+
+    #return random.choice(empty_cells)
+    # Find the cell with the fewest possible values
+    return min(empty_cells, key=lambda cell: len(partial_state.get_possible_values(*cell)))
 
 def order_values(partial_state, row, col):
     """
@@ -92,72 +98,6 @@ def depth_first_search(partial_state):
     # No solution found
     return None
 
-class SudokuState():
-    def __init__(self, configuration):
-        self.configuration = np.copy(configuration)
-        self.domains = self._init_domains()
-
-    def _init_domains(self):
-
-        domains = {}
-        for i in range(9):
-            for j in range(9):
-                if self.configuration[i,j] == 0:
-                    domains[(i,j)] = set(range(1,10))
-                else:
-                    domains[(i, j)] = {self.board[i, j]}
-        return domains 
-    
-    def get_possible_values(self, row, col):
-        return list(self.domains[(row, col)])
-    
-    def set_value(self, row, col, value):
-        self.configuration[row, col] = value
-        self._update_domains(row, col, value)
-
-    def _update_domains(self, row, col, value):
-
-        # remove from row and col
-        for i in range(9):
-            self.domains[(row, i)].discard(value)
-            self.domains[(i, col)].discard(value)
-
-        # remove from 3x3 grid
-        start_row, start_col = 3 * (row // 3), 3 * (col // 3)
-        for i in range(start_row, start_row + 3):
-            for j in range(start_col, start_col + 3):
-                self.domains[(i, j)].discard(value)
-
-    def is_valid(self, row, col, value):
-        if value in self.configuration[row, :]:
-            return False
-        if value in self.configuration[:, col]:
-            return False
-        start_row, start_col = 3 * (row // 3), 3 * (col // 3)
-        if value in self.board[start_row:start_row+3, start_col:start_col+3]:
-            return False 
-        
-         # Check the row for conflicts, excluding the current cell
-    #if value in self.board[row, :] and self.board[row, col] != value:
-        #return False
-    
-    # Check the column for conflicts, excluding the current cell
-    #if value in self.board[:, col] and self.board[row, col] != value:
-        #return False
-    
-    # Check the 3x3 subgrid, excluding the current cell
-    #start_row, start_col = 3 * (row // 3), 3 * (col // 3)
-    #subgrid = self.board[start_row:start_row + 3, start_col:start_col + 3]
-    
-    #if value in subgrid and self.board[row, col] != value:
-        #return False
-
-    def is_solved(self):
-        return np.all(self.configuration != 0)
-    
-    def copy(self):
-        return SudokuState(self.configuration)
-    
 class PartialSudokuState:
     def __init__(self, board):
         self.board = np.copy(board)
