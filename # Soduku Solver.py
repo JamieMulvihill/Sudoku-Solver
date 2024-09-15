@@ -3,6 +3,7 @@ import numpy as np
 import copy
 import random
 import time
+from collections import deque
 
 def sudoku_solver(sudoku):
     """
@@ -21,7 +22,13 @@ def sudoku_solver(sudoku):
     start_time = time.time()
     partial_state = PartialSudokuState(sudoku)
 
-    if not partial_state.is_valid():
+    if not partial_state.ac3():
+        return np.full((9, 9), -1, dtype=int)
+
+    #if not partial_state.is_valid():
+        #return np.full((9, 9), -1, dtype=int)
+
+    if not partial_state.quick_validity_check():
         return np.full((9, 9), -1, dtype=int)
 
     solution = depth_first_search(partial_state, start_time, time_limit)
@@ -82,6 +89,10 @@ class PartialSudokuState:
         used |= set(self.board[box_row:box_row+3, box_col:box_col+3].flatten())
         return used - {0}
 
+    def quick_validity_check(self):
+        # Check if any cell has an empty domain
+        return all(len(domain) > 0 for domain in self.domains.values())
+
     def is_valid(self):
         for i in range(9):
             if len(set(self.board[i]) - {0}) != len(self.board[i][self.board[i] != 0]):
@@ -125,6 +136,56 @@ class PartialSudokuState:
 
     def is_invalid(self):
         return not self.is_valid()
+    
+    def ac3(self):
+        queue = deque([(r, c) for r in range(9) for c in range(9)])
+        while queue:
+            (row, col) = queue.popleft()
+            if self.revise(row, col):
+                if len(self.domains[(row, col)]) == 0:
+                    return False
+                neighbors = self.get_neighbors(row, col)
+                for neighbor in neighbors:
+                    if neighbor != (row, col):
+                        queue.append(neighbor)
+        return True
+
+    def revise(self, row, col):
+        revised = False
+        for value in list(self.domains[(row, col)]):
+            if not self.has_consistent_assignment(row, col, value):
+                self.domains[(row, col)].remove(value)
+                revised = True
+        return revised
+
+    def has_consistent_assignment(self, row, col, value):
+        for r in range(9):
+            if r != row and len(self.domains[(r, col)]) == 1 and value in self.domains[(r, col)]:
+                return False
+        for c in range(9):
+            if c != col and len(self.domains[(row, c)]) == 1 and value in self.domains[(row, c)]:
+                return False
+        box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+        for r in range(box_row, box_row + 3):
+            for c in range(box_col, box_col + 3):
+                if (r, c) != (row, col) and len(self.domains[(r, c)]) == 1 and value in self.domains[(r, c)]:
+                    return False
+        return True
+
+    def get_neighbors(self, row, col):
+        neighbors = []
+        for r in range(9):
+            if r != row:
+                neighbors.append((r, col))
+        for c in range(9):
+            if c != col:
+                neighbors.append((row, c))
+        box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+        for r in range(box_row, box_row + 3):
+            for c in range(box_col, box_col + 3):
+                if (r, c) != (row, col):
+                    neighbors.append((r, c))
+        return neighbors
 
 # Main execution
 sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
@@ -150,4 +211,4 @@ for num in range(len(sudoku)):
 
 end_time = time.process_time()
 print(f"Solved {num_success} out of {len(sudoku)} puzzles.")
-print(f"Total time: {end_time - start_time:.2f} seconds")
+print(f"Total time: {end_time - start_time:.4f} seconds")
