@@ -62,10 +62,25 @@ def order_values(partial_state, row, col):
     """
     Get possible values for a particular cell in the order we should try them.
     """
+    def count_conflicts(value):
+        # Count how many possibilities this value eliminates in related cells
+        conflicts = 0
+        for r in range(9):
+            if r != row and value in partial_state.domains[(r, col)]:
+                conflicts += 1
+        for c in range(9):
+            if c != col and value in partial_state.domains[(row, c)]:
+                conflicts += 1
+        start_row, start_col = 3 * (row // 3), 3 * (col // 3)
+        for r in range(start_row, start_row + 3):
+            for c in range(start_col, start_col + 3):
+                if (r, c) != (row, col) and value in partial_state.domains[(r, c)]:
+                    conflicts += 1
+        return conflicts
+    
     values = partial_state.get_possible_values(row, col)
-    random.shuffle(values)
     print(values)
-    return values
+    return sorted(values, key=count_conflicts)
 
 def depth_first_search(partial_state):
     """
@@ -78,6 +93,7 @@ def depth_first_search(partial_state):
         return partial_state
 
     # Pick the next empty cell to fill
+    print("Printing Sorted values")
     row, col = pick_next_empty_cell(partial_state)
     values = order_values(partial_state, row, col)
     print(values)
@@ -182,7 +198,7 @@ class PartialSudokuState:
 
 num_success = 0
 start_time = time.process_time()
-for num in range(3, len(sudoku)):
+for num in range(0, 1):
     partial_state = PartialSudokuState(sudoku[num])
     solution = depth_first_search(partial_state)
 
