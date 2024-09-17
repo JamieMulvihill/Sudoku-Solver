@@ -25,13 +25,18 @@ def sudoku_solver(sudoku):
     if not partial_state.ac3():
         return np.full((9, 9), -1, dtype=int)
 
+    while partial_state.apply_naked_pairs():
+        if not partial_state.ac3():
+            return np.full((9, 9), -1, dtype=int)
+
     #if not partial_state.is_valid():
         #return np.full((9, 9), -1, dtype=int)
 
     if not partial_state.quick_validity_check():
         return np.full((9, 9), -1, dtype=int)
 
-    solution = depth_first_search(partial_state, start_time, time_limit)
+    #solution = depth_first_search(partial_state, start_time, time_limit)
+    solution = depth_first_search_with_forward_checking(partial_state, start_time, time_limit)
 
     if solution is None:
         return np.full((9, 9), -1, dtype=int)
@@ -45,25 +50,79 @@ def pick_next_empty_cell(partial_state):
     empty_cells = [(row, col) for row in range(9) for col in range(9) if partial_state.board[row, col] == 0]
     return min(empty_cells, key=lambda cell: len(partial_state.get_possible_values(*cell))) if empty_cells else (None, None)
 
+def pick_unassigned_variable(state):
+        return min(
+        ((r, c) for r in range(9) for c in range(9) if state.board[r, c] == 0),
+        key=lambda cell: len(state.domains[cell])
+    )
+
 def depth_first_search(partial_state, start_time, time_limit):
-    """
-    Perform a depth-first search on partial Sudoku states.
-    """
     if time.time() - start_time > time_limit:
         return None  # Time limit exceeded
 
-    if partial_state.is_goal():
+    if np.all(partial_state.board != 0):
         return partial_state
 
-    row, col = pick_next_empty_cell(partial_state)
-    if row is None and col is None:
-        return partial_state if not partial_state.is_invalid() else None
+    row, col = pick_unassigned_variable(partial_state)
     
-    for value in partial_state.get_possible_values(row, col):
-        new_state = partial_state.set_value(row, col, value)
-        if new_state.is_valid():
+    for value in sorted(partial_state.domains[(row, col)]):
+        new_state = copy.deepcopy(partial_state)
+        new_state.board[row, col] = value
+        new_state.domains[(row, col)] = {value}
+        
+        if new_state.ac3():  # Run AC-3 after each assignment
             result = depth_first_search(new_state, start_time, time_limit)
-            if result is not None and result.is_goal():
+            if result is not None:
+                return result
+
+    return None
+
+def forward_check(state, row, col, value):
+    for r in range(9):
+        if r != row and value in state.domains[(r, col)]:
+            if len(state.domains[(r, col)]) == 1:
+                return False
+            state.domains[(r, col)].remove(value)
+    
+    for c in range(9):
+        if c != col and value in state.domains[(row, c)]:
+            if len(state.domains[(row, c)]) == 1:
+                return False
+            state.domains[(row, c)].remove(value)
+    
+    box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+    for r in range(box_row, box_row + 3):
+        for c in range(box_col, box_col + 3):
+            if (r, c) != (row, col) and value in state.domains[(r, c)]:
+                if len(state.domains[(r, c)]) == 1:
+                    return False
+                state.domains[(r, c)].remove(value)
+    
+    return True
+
+def pick_unassigned_variable(state):
+    return min(
+        ((r, c) for r in range(9) for c in range(9) if state.board[r, c] == 0),
+        key=lambda cell: len(state.domains[cell])
+    )
+
+def depth_first_search_with_forward_checking(partial_state, start_time, time_limit):
+    if time.time() - start_time > time_limit:
+        return None  # Time limit exceeded
+
+    if np.all(partial_state.board != 0):
+        return partial_state
+
+    row, col = pick_unassigned_variable(partial_state)
+    
+    for value in sorted(partial_state.domains[(row, col)]):
+        new_state = copy.deepcopy(partial_state)
+        new_state.board[row, col] = value
+        new_state.domains[(row, col)] = {value}
+        
+        if forward_check(new_state, row, col, value) and new_state.ac3():
+            result = depth_first_search_with_forward_checking(new_state, start_time, time_limit)
+            if result is not None:
                 return result
 
     return None
@@ -186,6 +245,42 @@ class PartialSudokuState:
                 if (r, c) != (row, col):
                     neighbors.append((r, c))
         return neighbors
+    
+    def apply_naked_pairs(self):
+        changed = False
+        for unit in self.get_all_units():
+            pairs = self.find_naked_pairs(unit)
+            for pair, cells in pairs.items():
+                if len(cells) == 2:
+                    for cell in unit:
+                        if cell not in cells:
+                            removed = self.domains[cell] & set(pair)
+                            if removed:
+                                self.domains[cell] -= set(pair)
+                                changed = True
+        return changed
+
+    def find_naked_pairs(self, unit):
+        pairs = {}
+        for cell in unit:
+            if len(self.domains[cell]) == 2:
+                pair = tuple(sorted(self.domains[cell]))
+                if pair in pairs:
+                    pairs[pair].append(cell)
+                else:
+                    pairs[pair] = [cell]
+        return pairs
+
+    def get_all_units(self):
+        units = []
+        # Rows
+        units.extend([[(r, c) for c in range(9)] for r in range(9)])
+        # Columns
+        units.extend([[(r, c) for r in range(9)] for c in range(9)])
+        # Boxes
+        units.extend([[(r, c) for r in range(box_r, box_r + 3) for c in range(box_c, box_c + 3)] 
+                      for box_r in range(0, 9, 3) for box_c in range(0, 9, 3)])
+        return units
 
 # Main execution
 sudoku = np.load(r"C:/Users/darre/Desktop/Masters/Foundations/SodukuSolver/data/hard_puzzle.npy")
