@@ -153,4 +153,5 @@ class PartialSudokuState:
         units.extend([[(r, c) for r in range(9)] for c in range(9)])
         # Boxes
         units.extend([[(r, c) for r in range(box_r, box_r + 3) for c in range(box_c, box_c + 3)] 
-                      for box_r in range(0, 9, 3) for box_c in range(0, 9, 3)])
+                      for box_r in range(0, 9, 3) for box_c in range(0, 9, 3)])  
+        return units
