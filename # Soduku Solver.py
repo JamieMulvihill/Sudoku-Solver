@@ -3,6 +3,7 @@ import numpy as np
 import copy
 import time
 from PartialSudokuState import PartialSudokuState
+import sudoku_utils
 from collections import deque
 
 def sudoku_solver(sudoku):
@@ -50,12 +51,6 @@ def pick_next_empty_cell(partial_state):
     empty_cells = [(row, col) for row in range(9) for col in range(9) if partial_state.board[row, col] == 0]
     return min(empty_cells, key=lambda cell: len(partial_state.get_possible_values(*cell))) if empty_cells else (None, None)
 
-def pick_unassigned_variable(state):
-        return min(
-        ((r, c) for r in range(9) for c in range(9) if state.board[r, c] == 0),
-        key=lambda cell: len(state.domains[cell])
-    )
-
 def depth_first_search(partial_state, start_time, time_limit):
     if time.time() - start_time > time_limit:
         return None  # Time limit exceeded
@@ -63,7 +58,7 @@ def depth_first_search(partial_state, start_time, time_limit):
     if np.all(partial_state.board != 0):
         return partial_state
 
-    row, col = pick_unassigned_variable(partial_state)
+    row, col = sudoku_utils.pick_unassigned_variable(partial_state)
     
     for value in sorted(partial_state.domains[(row, col)]):
         new_state = copy.deepcopy(partial_state)
@@ -77,35 +72,6 @@ def depth_first_search(partial_state, start_time, time_limit):
 
     return None
 
-def forward_check(state, row, col, value):
-    for r in range(9):
-        if r != row and value in state.domains[(r, col)]:
-            if len(state.domains[(r, col)]) == 1:
-                return False
-            state.domains[(r, col)].remove(value)
-    
-    for c in range(9):
-        if c != col and value in state.domains[(row, c)]:
-            if len(state.domains[(row, c)]) == 1:
-                return False
-            state.domains[(row, c)].remove(value)
-    
-    box_row, box_col = 3 * (row // 3), 3 * (col // 3)
-    for r in range(box_row, box_row + 3):
-        for c in range(box_col, box_col + 3):
-            if (r, c) != (row, col) and value in state.domains[(r, c)]:
-                if len(state.domains[(r, c)]) == 1:
-                    return False
-                state.domains[(r, c)].remove(value)
-    
-    return True
-
-def pick_unassigned_variable(state):
-    return min(
-        ((r, c) for r in range(9) for c in range(9) if state.board[r, c] == 0),
-        key=lambda cell: len(state.domains[cell])
-    )
-
 def depth_first_search_with_forward_checking(partial_state, start_time, time_limit):
     if time.time() - start_time > time_limit:
         return None  # Time limit exceeded
@@ -113,14 +79,14 @@ def depth_first_search_with_forward_checking(partial_state, start_time, time_lim
     if np.all(partial_state.board != 0):
         return partial_state
 
-    row, col = pick_unassigned_variable(partial_state)
+    row, col = sudoku_utils.pick_unassigned_variable(partial_state)
     
     for value in sorted(partial_state.domains[(row, col)]):
         new_state = copy.deepcopy(partial_state)
         new_state.board[row, col] = value
         new_state.domains[(row, col)] = {value}
         
-        if forward_check(new_state, row, col, value) and new_state.ac3():
+        if sudoku_utils.forward_check(new_state, row, col, value) and new_state.ac3():
             result = depth_first_search_with_forward_checking(new_state, start_time, time_limit)
             if result is not None:
                 return result
